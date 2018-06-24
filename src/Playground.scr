@@ -1,0 +1,18 @@
+module Playground;
+
+type <purescript> "String" from "Prim" as String;
+type <purescript> "QResult" from "ScribblePlayground" as QResult;
+
+global protocol LanguageServer(role Client, role Server) {
+    choice at Client {
+        Verify(String) from Client to Server;
+        Result(QResult) from Server to Client;
+    } or {
+        Project(String, String, String) from Client to Server;
+        Result(QResult) from Server to Client;
+    } or {
+        FSM(String, String, String) from Client to Server;
+        Result(QResult) from Server to Client;
+    }
+    do LanguageServer(Client, Server);
+}
