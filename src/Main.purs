@@ -196,7 +196,7 @@ app query = do
   halogenSession
     (Proxy :: Proxy WebSocket)
     (Role :: Role LS.Client)
-    (WS.URL $ "ws://127.0.0.1:9160")
+    (WS.URL $ "ws://scribble-playground.jlk.co:9160")
     query
     (const $ query $ H.action $ Disconnect) -- No error handling
     (\c -> (lift $ query $ H.action $ ResultEvent (Right Connected)) *> loop c)
