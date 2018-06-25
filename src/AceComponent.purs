@@ -25,6 +25,8 @@ type AceState = { editor :: Maybe Editor }
 data AceQuery a
   = Initialize a
   | Finalize a
+  | Enable a
+  | Disable a
   | ChangeText String a
   | HandleChange (H.SubscribeStatus -> a)
 
@@ -73,6 +75,18 @@ aceComponent =
       -- Release the reference to the editor and do any other cleanup that a
       -- real world component might need.
       H.modify (_ { editor = Nothing })
+      pure next
+    Enable next -> do
+      maybeEditor <- H.gets _.editor
+      case maybeEditor of
+        Nothing -> pure unit
+        Just editor -> H.liftEff $ Editor.setReadOnly false editor
+      pure next
+    Disable next -> do
+      maybeEditor <- H.gets _.editor
+      case maybeEditor of
+        Nothing -> pure unit
+        Just editor -> H.liftEff $ Editor.setReadOnly true editor
       pure next
     ChangeText text next -> do
       maybeEditor <- H.gets _.editor

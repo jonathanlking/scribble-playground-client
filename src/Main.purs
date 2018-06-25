@@ -24,6 +24,7 @@ type State = { text :: String }
 -- | The query algebra for the app.
 data Query a
   = ClearText a
+  | DisableEditing a
   | HandleAceUpdate String a
 
 -- | The slot address type for the Ace component.
@@ -48,24 +49,30 @@ ui =
   render :: State -> H.ParentHTML Query AceQuery AceSlot (Aff (AceEffects eff))
   render { text: text } =
     HH.div_
-      [ HH.h1_
-          [ HH.text "ace editor" ]
+      [ HH.h3_
+          [ HH.text "Scribble Playground" ]
+      , HH.div_
+          [ HH.slot AceSlot aceComponent unit handleAceOuput ]
       , HH.div_
           [ HH.p_
               [ HH.button
                   [ HE.onClick (HE.input_ ClearText) ]
                   [ HH.text "Clear" ]
+              , HH.button
+                  [ HE.onClick (HE.input_ DisableEditing) ]
+                  [ HH.text "Disable" ]
               ]
           ]
-      , HH.div_
-          [ HH.slot AceSlot aceComponent unit handleAceOuput ]
-      , HH.p_
+     , HH.p_
           [ HH.text ("Current text: " <> text) ]
       ]
 
   eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Void (Aff (AceEffects eff))
   eval (ClearText next) = do
     _ <- H.query AceSlot $ H.action (ChangeText "")
+    pure next
+  eval (DisableEditing next) = do
+    _ <- H.query AceSlot $ H.action Disable
     pure next
   eval (HandleAceUpdate text next) = do
     _ <- H.modify (_ { text = text })
