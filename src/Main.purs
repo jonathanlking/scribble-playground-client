@@ -18,6 +18,8 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 
+import Halogen.HTML.CSS as CSS
+
 import Ace.Types (ACE)
 import AceComponent (AceEffects, AceOutput(..), AceQuery(..), aceComponent)
 
@@ -46,6 +48,9 @@ import Graphics.Viz as Viz
 import Halogen.Component.Raw
 import Data.Functor.Coproduct.Nested
 import Data.Either.Nested
+
+import CSS.Font (color)
+import Color.Scheme.Clrs (red, green)
 
 import Scribble.Protocol.Playground.LanguageServer as LS
 
@@ -113,7 +118,7 @@ ui =
       [ HH.h3_
           [ HH.text "Scribble Playground" ]
       , HH.div_
-          [ HH.slot' CP.cp1 AceSlot aceComponent unit handleAceOuput ]
+          [ HH.slot' CP.cp1 AceSlot aceComponent unit handleAceOutput ]
       , HH.div_
           [ HH.p_
               [ HH.text "Protocol:" 
@@ -140,10 +145,9 @@ ui =
     where
     result = case mode of
       Connecting -> HH.p_ [ HH.text "Connecting..." ]
-      (Ready (Left e)) -> HH.p_ [ HH.text $ "Error: " <> e ]
+      (Ready (Left e)) -> HH.p [ CSS.style (color red) ] [ HH.text $ "Error: " <> e ]
       (Ready (Right Connected)) -> HH.p_ [ HH.text "Connected" ]
-      (Ready (Right Verified)) -> HH.p_ [ HH.text "Verified!" ]
---      (Ready (Right (FSM desc))) -> HH.p_ [ HH.text "Verified!" ]
+      (Ready (Right Verified)) -> HH.h3 [ CSS.style (color green) ] [ HH.text "Verified!" ]
       (Ready (Right (FSM desc))) -> HH.div_ [HH.slot' CP.cp2 unit rawComponent {html: Viz.viz desc Viz.SVG, elRef: "fsm"} (const Nothing)] 
       (Ready (Right (Projection proj))) -> HH.p_ [ HH.text proj ]
       Working -> HH.p_ [ HH.text "Working..." ]
@@ -173,8 +177,8 @@ ui =
     pure next
     
 
-  handleAceOuput :: AceOutput -> Maybe (Query Unit)
-  handleAceOuput (TextChanged text) = Just $ H.action $ HandleAceUpdate text
+  handleAceOutput :: AceOutput -> Maybe (Query Unit)
+  handleAceOutput (TextChanged text) = Just $ H.action $ HandleAceUpdate text
 
 -- | Run the app!
 main :: Eff (HA.HalogenEffects (rawhtml :: RAWHTML, ace :: ACE, console :: CONSOLE)) Unit
