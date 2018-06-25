@@ -2,7 +2,7 @@ module Main where
 
 import Prelude
 
-import Control.Monad.Aff (Aff)
+import Control.Monad.Aff (Aff, delay)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 
@@ -11,21 +11,50 @@ import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
+import Halogen.HTML.Properties as HP
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 
 import Ace.Types (ACE)
 import AceComponent (AceEffects, AceOutput(..), AceQuery(..), aceComponent)
 
+import Data.Either (Either(..))
+import Data.Time.Duration (Milliseconds(..))
+
+type Scribble = String
+type Protocol = String
+type Role = String
+
 -- | The application state, which in this case just stores the current text in
 -- | the editor.
-type State = { text :: String }
+type State = { text :: Scribble, protocol :: Protocol, role :: Role,  mode :: Mode }
+
+data Mode
+  = Connecting
+  | Ready (Either String Result)
+  | Working
+derive instance eqMode :: Eq Mode
+
+data Message
+  = VerifyM Scribble
+  | ProjectM Scribble Role Protocol 
+  | FSMM Scribble Role Protocol 
+
+data Result
+  = EFSM String
+  | Projection Protocol
+  | Verified
+  | Connected   
+derive instance eqResult :: Eq Result
 
 -- | The query algebra for the app.
 data Query a
-  = ClearText a
-  | DisableEditing a
+  = ResultEvent (Either String Result) a
+  | PerformQuery Message a
   | HandleAceUpdate String a
+  | UpdateProtocol String a
+  | UpdateRole String a
+  
 
 -- | The slot address type for the Ace component.
 data AceSlot = AceSlot
@@ -33,7 +62,7 @@ derive instance eqAceSlot :: Eq AceSlot
 derive instance ordAceSlot :: Ord AceSlot
 
 -- | The main UI component definition.
-ui :: forall eff. H.Component HH.HTML Query Unit Void (Aff (AceEffects eff))
+ui :: forall eff. H.Component HH.HTML Query Unit Message (Aff (AceEffects eff))
 ui =
   H.parentComponent
     { initialState: const initialState
@@ -44,10 +73,10 @@ ui =
   where
 
   initialState :: State
-  initialState = { text: "" }
+  initialState = { text: "", protocol: "", role: "", mode: Connecting }
 
   render :: State -> H.ParentHTML Query AceQuery AceSlot (Aff (AceEffects eff))
-  render { text: text } =
+  render { text: text, mode: mode, role: role, protocol: protocol} =
     HH.div_
       [ HH.h3_
           [ HH.text "Scribble Playground" ]
@@ -55,27 +84,55 @@ ui =
           [ HH.slot AceSlot aceComponent unit handleAceOuput ]
       , HH.div_
           [ HH.p_
+              [ HH.text "Protocol:" 
+              , HH.input [HE.onValueChange (HE.input UpdateProtocol)]
+              ]
+          , HH.p_
+              [ HH.text "Role:" 
+              , HH.input [HE.onValueChange (HE.input UpdateRole)]
+              ]
+          , HH.p_
               [ HH.button
-                  [ HE.onClick (HE.input_ ClearText) ]
-                  [ HH.text "Clear" ]
+                  [ HE.onClick (HE.input_ $ PerformQuery (VerifyM text)), enabled ]
+                  [ HH.text "Verify" ]
               , HH.button
-                  [ HE.onClick (HE.input_ DisableEditing) ]
-                  [ HH.text "Disable" ]
+                  [ HE.onClick (HE.input_ $ PerformQuery (ProjectM text role protocol)), enabled ]
+                  [ HH.text "Project" ]
+              , HH.button
+                  [ HE.onClick (HE.input_ $ PerformQuery (FSMM text role protocol)), enabled ]
+                  [ HH.text "Generate FSM" ]
               ]
           ]
-     , HH.p_
-          [ HH.text ("Current text: " <> text) ]
+      , result
       ]
+    where
+    result = case mode of
+      Connecting -> HH.p_ [ HH.text "Connecting..." ]
+      (Ready (Left e)) -> HH.p_ [ HH.text $ "Error: " <> e ]
+      (Ready (Right Connected)) -> HH.p_ [ HH.text "Connected" ]
+      (Ready (Right Verified)) -> HH.p_ [ HH.text "Verified!" ]
+      (Ready (Right (EFSM desc))) -> HH.p_ [ HH.text desc ]
+      (Ready (Right (Projection proj))) -> HH.p_ [ HH.text proj ]
+      Working -> HH.p_ [ HH.text "Working..." ]
+    enabled = HP.enabled (mode /= Working)  
 
-  eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Void (Aff (AceEffects eff))
-  eval (ClearText next) = do
-    _ <- H.query AceSlot $ H.action (ChangeText "")
+  eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Message (Aff (AceEffects eff))
+  eval (ResultEvent result next) = do
+    _ <- H.modify (_ { mode = Ready result })
+--    _ <- H.query AceSlot $ H.action Enable
     pure next
-  eval (DisableEditing next) = do
-    _ <- H.query AceSlot $ H.action Disable
+  eval (PerformQuery m next) = do
+    _ <- H.modify (_ { mode = Working })
+    H.raise m
     pure next
   eval (HandleAceUpdate text next) = do
     _ <- H.modify (_ { text = text })
+    pure next
+  eval (UpdateProtocol p next) = do
+    _ <- H.modify (_ { protocol = p })
+    pure next
+  eval (UpdateRole r next) = do
+    _ <- H.modify (_ { role = r })
     pure next
 
   handleAceOuput :: AceOutput -> Maybe (Query Unit)
@@ -85,7 +142,10 @@ ui =
 main :: Eff (HA.HalogenEffects (ace :: ACE, console :: CONSOLE)) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  runUI ui unit body
+  io <- runUI ui unit body
+  delay (Milliseconds 1000.0)
+  io.query $ H.action $ ResultEvent (Right Connected)
+
 
 -- module Main where
 -- 
