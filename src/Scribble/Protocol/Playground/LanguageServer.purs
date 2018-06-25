@@ -28,7 +28,7 @@ instance encodeJsonFSM :: EncodeJson FSM where
   encodeJson = genericEncodeJson
 instance decodeJsonFSM :: DecodeJson FSM where
   decodeJson = genericDecodeJson
-data QResult = QResult String
+data QResult = QResult Result
 derive instance genericQResult :: Generic QResult _
 instance encodeJsonQResult :: EncodeJson QResult where
   encodeJson = genericEncodeJson
