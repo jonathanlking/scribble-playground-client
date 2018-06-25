@@ -10,6 +10,7 @@
     "purescript-prelude": "^3.3.0",
     "purescript-ace": "4.0.0",
     "purescript-console": "^3.0.0",
+    "viz.js": "^1.8.0",
     "purescript-scribble": "purescript-scribble"
   },
   "devDependencies": {

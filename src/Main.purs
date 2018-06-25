@@ -14,6 +14,7 @@ import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Halogen.Component.ChildPath as CP
 import Halogen.HTML.Events as HE
 import Halogen.VDom.Driver (runUI)
 
@@ -40,6 +41,11 @@ import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Console (log)
 import Control.Monad.Eff.Unsafe (unsafeCoerceEff)
 import Control.Parallel
+
+import Graphics.Viz as Viz
+import Halogen.Component.Raw
+import Data.Functor.Coproduct.Nested
+import Data.Either.Nested
 
 import Scribble.Protocol.Playground.LanguageServer as LS
 
@@ -84,8 +90,11 @@ data AceSlot = AceSlot
 derive instance eqAceSlot :: Eq AceSlot
 derive instance ordAceSlot :: Ord AceSlot
 
+type ChildQuery = Coproduct2 AceQuery RawQuery
+type ChildSlot = Either2 AceSlot Unit 
+
 -- | The main UI component definition.
-ui :: forall eff. H.Component HH.HTML Query Unit Message (Aff (AceEffects eff))
+ui :: forall eff. H.Component HH.HTML Query Unit Message (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
 ui =
   H.parentComponent
     { initialState: const initialState
@@ -98,13 +107,13 @@ ui =
   initialState :: State
   initialState = { text: "", protocol: "", role: "", mode: Connecting }
 
-  render :: State -> H.ParentHTML Query AceQuery AceSlot (Aff (AceEffects eff))
+  render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
   render { text: text, mode: mode, role: role, protocol: protocol} =
     HH.div_
       [ HH.h3_
           [ HH.text "Scribble Playground" ]
       , HH.div_
-          [ HH.slot AceSlot aceComponent unit handleAceOuput ]
+          [ HH.slot' CP.cp1 AceSlot aceComponent unit handleAceOuput ]
       , HH.div_
           [ HH.p_
               [ HH.text "Protocol:" 
@@ -134,13 +143,14 @@ ui =
       (Ready (Left e)) -> HH.p_ [ HH.text $ "Error: " <> e ]
       (Ready (Right Connected)) -> HH.p_ [ HH.text "Connected" ]
       (Ready (Right Verified)) -> HH.p_ [ HH.text "Verified!" ]
-      (Ready (Right (FSM desc))) -> HH.p_ [ HH.text desc ]
+--      (Ready (Right (FSM desc))) -> HH.p_ [ HH.text "Verified!" ]
+      (Ready (Right (FSM desc))) -> HH.div_ [HH.slot' CP.cp2 unit rawComponent {html: Viz.viz desc Viz.SVG, elRef: "fsm"} (const Nothing)] 
       (Ready (Right (Projection proj))) -> HH.p_ [ HH.text proj ]
       Working -> HH.p_ [ HH.text "Working..." ]
       Disconnected -> HH.p_ [ HH.text "The connection has been lost, please refresh the page." ]
     enabled = HP.enabled (mode /= Working)  
 
-  eval :: Query ~> H.ParentDSL State Query AceQuery AceSlot Message (Aff (AceEffects eff))
+  eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Message (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
   eval (ResultEvent result next) = do
     _ <- H.modify (_ { mode = Ready result })
 --    _ <- H.query AceSlot $ H.action Enable
@@ -167,7 +177,7 @@ ui =
   handleAceOuput (TextChanged text) = Just $ H.action $ HandleAceUpdate text
 
 -- | Run the app!
-main :: Eff (HA.HalogenEffects (ace :: ACE, console :: CONSOLE)) Unit
+main :: Eff (HA.HalogenEffects (rawhtml :: RAWHTML, ace :: ACE, console :: CONSOLE)) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   io <- runUI ui unit body
