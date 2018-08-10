@@ -108,27 +108,27 @@ component =
       H.raise ConnectM
       pure next
     Connecting next -> do
-      H.modify (\state -> { status: SConnecting })
+      H.modify_ (\state -> { status: SConnecting })
       pure next
     Connected next -> do
-      H.modify (\state -> { status: SReady Nothing })
+      H.modify_ (\state -> { status: SReady Nothing })
       pure next
     Disconnect next -> do
-      H.modify (\state -> { status: SDisconnected })
+      H.modify_ (\state -> { status: SDisconnected })
       pure next
     UpdateInput i next -> do
-      H.modify (\state -> { status: SReady (fromString i) })
+      H.modify_ (\state -> { status: SReady (fromString i) })
       pure next
     QueryFib n next -> do
-      H.modify (\state -> { status: SWorking })
+      H.modify_ (\state -> { status: SWorking })
       H.raise (FibM n)
       pure next
     ResultFib res next -> do
-      H.modify (\state -> { status: SResult res })
+      H.modify_ (\state -> { status: SResult res })
       pure next
     Reset next -> do
-      H.modify (\state -> { status: SReady Nothing})
+      H.modify_ (\state -> { status: SReady Nothing})
       pure next
     Errored e next -> do
-      H.modify (\state -> { status: SErrored e })
+      H.modify_ (\state -> { status: SErrored e })
       pure next

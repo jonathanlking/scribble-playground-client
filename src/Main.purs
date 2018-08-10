@@ -1,11 +1,10 @@
 module Main where
 
 import Prelude
+import Effect (Effect)
 
 import Control.Coroutine (await, Consumer)
-import Control.Monad.Aff (Aff, delay)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE)
+import Effect.Aff (Aff, delay)
 
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
@@ -20,28 +19,25 @@ import Halogen.VDom.Driver (runUI)
 
 import Halogen.HTML.CSS as CSS
 
-import Ace.Types (ACE)
-import AceComponent (AceEffects, AceOutput(..), AceQuery(..), aceComponent)
+import AceComponent (AceOutput(..), AceQuery(..), aceComponent)
 
 import Data.Either (Either(..), either)
 import Data.Time.Duration (Milliseconds(..))
 
 import Scribble.FSM
 import Scribble.Core
-import Scribble.WebSocket (WebSocket)
-import DOM.Websocket.WebSocket as WS
+import Scribble.WebSocket (WebSocket, URL(..))
 import Type.Proxy (Proxy(..))
 import Data.Symbol (SProxy(SProxy))
-import Control.Monad.Aff.AVar (AVAR, AVar)
+import Effect.Aff.AVar (AVar)
 import Control.Monad.Rec.Class (forever)
 import Control.Monad.Trans.Class (lift)
 
 import Partial.Unsafe (unsafeCrashWith)
 import Control.Monad.Error.Class (throwError)
 import Scribble.Halogen
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Console (log)
-import Control.Monad.Eff.Unsafe (unsafeCoerceEff)
+import Effect.Class (liftEffect)
+import Effect.Class.Console (log)
 import Control.Parallel
 
 import Graphics.Viz as Viz
@@ -99,7 +95,7 @@ type ChildQuery = Coproduct2 AceQuery RawQuery
 type ChildSlot = Either2 AceSlot Unit 
 
 -- | The main UI component definition.
-ui :: forall eff. H.Component HH.HTML Query Unit Message (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
+ui :: forall eff. H.Component HH.HTML Query Unit Message Aff
 ui =
   H.parentComponent
     { initialState: const initialState
@@ -112,7 +108,7 @@ ui =
   initialState :: State
   initialState = { text: "", protocol: "", role: "", mode: Connecting }
 
-  render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
+  render :: State -> H.ParentHTML Query ChildQuery ChildSlot Aff
   render { text: text, mode: mode, role: role, protocol: protocol} =
     HH.div_
       [ HH.h3_
@@ -154,7 +150,7 @@ ui =
       Disconnected -> HH.p_ [ HH.text "The connection has been lost, please refresh the page." ]
     enabled = HP.enabled (mode /= Working)  
 
-  eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Message (Aff (AceEffects (rawhtml :: RAWHTML | eff)))
+  eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Message Aff
   eval (ResultEvent result next) = do
     _ <- H.modify (_ { mode = Ready result })
 --    _ <- H.query AceSlot $ H.action Enable
@@ -181,7 +177,7 @@ ui =
   handleAceOutput (TextChanged text) = Just $ H.action $ HandleAceUpdate text
 
 -- | Run the app!
-main :: Eff (HA.HalogenEffects (rawhtml :: RAWHTML, ace :: ACE, console :: CONSOLE)) Unit
+main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   io <- runUI ui unit body
@@ -190,13 +186,13 @@ main = HA.runHalogenAff do
   (io.subscribe (app io.query))
 
 app :: forall q m a eff.
-       (Query ~> Aff (TransportEffects (eff)))
-    -> Consumer Message (Aff (TransportEffects (eff))) Unit
+       (Query ~> Aff)
+    -> Consumer Message Aff Unit
 app query = do
   halogenSession
     (Proxy :: Proxy WebSocket)
     (Role :: Role LS.Client)
-    (WS.URL $ "ws://scribble-playground.jlk.co:9160")
+    (URL $ "ws://scribble-playground.jlk.co:9160")
     query
     (const $ query $ H.action $ Disconnect) -- No error handling
     (\c -> (lift $ query $ H.action $ ResultEvent (Right Connected)) *> loop c)
